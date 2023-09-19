@@ -19,8 +19,8 @@ class WallFollow(Node):
         self.drive_pub = self.create_publisher(AckermannDriveStamped, drive_topic, 10)
 
         # TODO: set PID gains
-        self.kp = 0.5
-        self.kd = 1.0
+        self.kp = 1.0
+        self.kd = 0.5
         self.ki = 0.0
 
         # TODO: store history
@@ -44,7 +44,7 @@ class WallFollow(Node):
         """
 
         #TODO: implement
-        # print(range_data.angle_min, range_data.angle_max)
+
         angle = angle / 180 * np.pi
 
         index90 = int((np.pi/2 - range_data.angle_min) / range_data.angle_increment)
@@ -53,13 +53,12 @@ class WallFollow(Node):
         index = int(((np.pi/2 - angle) - range_data.angle_min) / range_data.angle_increment)
         a_range = range_data.ranges[index]
 
-        self.alpha = np.arctan2((a_range * np.cos(angle) - b_range) , (a_range * np.sin(angle)))
+        self.alpha = np.arctan((a_range * np.cos(angle) - b_range) / (a_range * np.sin(angle)))
 
         D = b_range * np.cos(self.alpha)
         if np.isinf(D) or np.isnan(D):
             return 0.0
-        # print(D)
-        # exit()
+
         return D
 
 
@@ -75,9 +74,14 @@ class WallFollow(Node):
             error: calculated error
         """
         #TODO:implement
-        D_t1 = self.get_range(range_data, 20) - dist * np.sin(self.alpha)
 
-        return -(dist - D_t1) 
+        Lookahead = 0.5
+        D_t1 = self.get_range(range_data, 30) + Lookahead * np.sin(self.alpha)
+        error = -(dist - D_t1)
+        # if np.abs(error/D_t1) < 0.05 or np.abs(error/D_t1) > 1:
+            # error = 0
+
+        return error 
 
     def pid_control(self, error, velocity):
         """
@@ -90,10 +94,11 @@ class WallFollow(Node):
         Returns:
             None
         """
-        # angle = -1.0
+
         # TODO: Use kp, ki & kd to implement a PID controller
         angle = self.kp * error + self.kd * (error - self.prev_error) + self.ki * self.integral
         print(angle/np.pi*180)
+
         # Store the current error for the next iteration
         self.prev_error = error
 
@@ -119,15 +124,14 @@ class WallFollow(Node):
         Returns:
             None
         """
-        desired_distance = 1
+        desired_distance = 0.701
         error = self.get_error(msg, desired_distance) # TODO: replace with error calculated by get_error()
         print(error)
-        
         velocity = 0.5 # TODO: calculate desired car velocity based on error
         self.integral += error  
         self.pid_control(error, velocity) # TODO: actuate the car with PID  
-        print(drive_msg.drive.steering_angle)
-        exit()
+        # print(drive_msg.drive.steering_angle)
+        # exit()
 
 def main(args=None):
     rclpy.init(args=args)
